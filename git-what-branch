@@ -1,18 +1,10 @@
 #!/usr/bin/perl
 #
-# Tell us what preferred branch a commit was made on and if has not
-# been made on any preferred branch, the earliest path the commit got
-# onto a named branch.
+# Tell us (by default) the earliest causal path of commits and merges to
+# cause the requested commit got onto a named branch.  If a commit was
+# made directly on a named branch, that obviously is the earliest path.
 #
-# Preferred meaning ignoring branches that are a descendant due to a
-# merge, close to the answer you would have gotten if you had asked
-# the question at the moment the commit/tag was made.
-#
-# If I am on a release branch and tag a commit, if I ask that question
-# I should be told the name of the release branch.  If I later merge
-# onto master and ask that question, being told that the tag was also
-# made on master is disingenious.  master is a descendant, but the tag
-# was not made on master.
+# See the pod documentation below for more information
 #
 # Thanks to Artur Skawina for his assistance in developing some
 # of the algorithms used by this script.
@@ -25,7 +17,7 @@ no warnings "uninitialized";
 use Getopt::Long;
 use strict;
 
-my $USAGE="$0: [--allref] [--all] [--quiet] [--reference-branch=branchname] [--reference=reference] <commit-hash/tag>...
+my $USAGE="$0: [--allref] [--all] [--quiet] [--reference-branch=branchname] [--reference=reference] [--version] <commit-hash/tag>...
 
 --allref
 	Consider even remote branches as candidates for the branch a
@@ -44,11 +36,27 @@ my $USAGE="$0: [--allref] [--all] [--quiet] [--reference-branch=branchname] [--r
 --reference <hash|tag>
 	Specify a particular commit you which you want to
 	know how the commit in question was reached
+
+--topo-order
+--date-order
+	By default we select the merge path which merged earliest into
+	a specific named commit (--date-order).  Instead we can select
+	--topo-order which will select the minimum number of merges.
+
+--version
+	Determine the version of the installed program.
 ";
 
 my(%OPTIONS);
 Getopt::Long::Configure("bundling", "no_ignore_case", "no_auto_abbrev", "no_getopt_compat", "require_order");
-GetOptions(\%OPTIONS, 'a|allref', 'all', 'quiet', 'debug', 'reference-branch=s', 'reference=s', 'verbose|v+') || die $USAGE;
+GetOptions(\%OPTIONS, 'a|allref', 'all', 'quiet', 'debug', 'reference-branch=s', 'reference=s', 'verbose|v+', 'version', 'topo-order', 'date-order') || die $USAGE;
+
+if ($OPTIONS{'version'})
+{
+  print "$0 version is {UNTAGGED}\n";
+  exit(0);
+}
+
 
 my ($OPT_A);
 $OPT_A="-a" if ($OPTIONS{'a'});
@@ -61,7 +69,6 @@ if ( $#ARGV < 0 )
 
 my ($MULTI);
 $MULTI=1 if ( $#ARGV > 0 );
-
 
 
 
@@ -284,7 +291,12 @@ foreach my $f (@ARGV)
 	}
 	else
 	{
-	  if (!defined($min{'tstamp'}) || $min{'tstamp'} > $brtree{br}->{'tstamp'})
+	  if (!defined($min{'tstamp'}) ||
+	      ($OPTIONS{'topo-order'}?
+	       ($min{'cnt'} > $brtree{$br} ||
+		($min{'cnt'} == $brtree{$br} &&
+		 $min{'tstamp'} > $brtree{$br}->{'tstamp'})):
+	       ($min{'tstamp'} > $brtree{$br}->{'tstamp'})))
 	  {
 	    %min = %{$brtree{$br}};
 	    $min{'br'} = $br;
@@ -336,3 +348,112 @@ foreach my $f (@ARGV)
   }
   print "----------------------------------------\n" if ($MULTI);
 }
+
+
+=pod
+
+=head1 NAME
+
+git-what-branch - Discover what branch a particular commit was made on or near
+
+=head1 SYNOPSIS
+
+git-what-branch [--allref] [--all] [--topo-order | --date-order ] [--quiet] [--reference-branch=branchname] [--reference=reference] <commit-hash/tag>...
+
+=head1 OVERVIEW
+
+Tell us (by default) the earliest causal path of commits and merges to
+cause the requested commit got onto a named branch.  If a commit was
+made directly on a named branch, that obviously is the earliest path.
+
+By earliest causal path, we mean the path which merged into a named
+branch the earliest, by commit time (unless --topo-order is
+specified).
+
+You may specify a particular reference branch or tag or revision to
+look at instead of searching (by default) the path for all named
+branches.  Searching the path for all named branches can take a long
+time for an early commit occurring on many branches.  If you
+specifically name a reference branch or commit, it should normally
+take seconds.
+
+=head1 DESCRIPTION
+
+=head2 --allref
+
+Allow even remote branches to be candidates to see what named branch a
+particular commit was make on or merged to.
+
+=head2 --all
+
+If the commit in question was not made directly on a named branch (in
+which case all branch names would be printed), the system picks the
+named branch which the commit was merged to first and prints only that
+path.  With this argument all paths from the commit in question to all
+named branches that it was committed onto are printed.
+
+=head2 --topo-order
+
+Instead of selecting the merge path which resulted in the earliest
+commit to a named branch, select the merge path which resulted in the
+fewest merges.  If multiple merge paths have the same distance, use
+earliest merge to break ties.  Please note that if --all is chosen, no
+ordering will be applied.
+
+=head2 --date-order
+
+The default ordering where the merge path which resulted in the
+earliest commit to a named branch is displayed. Please note that if
+--all is chosen, no ordering will be applied.
+
+=head2 --quiet
+
+If the commit was not made on a branch, do not print the path from the
+commit to the named branch, just print the branch name.
+
+=head2 --reference-branch <branchname>
+
+Instead of looking at all branches which contain a specific commit,
+look only at the named branch.  This will save a great deal of time if
+many branches contain the commits in question.
+
+=head2 --reference <tagname/commithash>
+
+Instead of looking to see what branch the commit was in, look to see
+how the commit got to a specific tag or other commit.  This would be
+useful to determine if a particular commit that introduced a bug (or a
+fix) was in a particular release, for example.
+
+=head1 BUGS
+
+git fast-forward merges make changes to branches without reflecting
+that history in a merge commit.  This means that when later reviewing
+that history, git may label (via --first-parent) the wrong branch as
+being named a specific name.  Any lies which git makes are reflected
+in the output of this program.
+
+Branches which are created after the commit you are interested in has
+been merged into another named branch you are interested in cannot be
+distinguished from the original branch.  Example if you have master
+branch, you make commit A, then make a release branch named v1.0,
+after branch v1.0 has been created there is no way to know that v1.0
+was created later and so both branches will be listed as the branches
+that commit A was made on.  If git recorded when a branch was created,
+we could avoid this problem.
+
+If multiple branches (say due to the previous bug) are candidates and
+the commit was NOT made directly on a named branch but rather on an
+anonymous branch that was merged, unless you request --all, a
+pseudo-random branch will be chosen as the branch advertised via the
+merge path.
+
+
+=head1 ACKNOWLEDGMENTS
+
+Thanks to Artur Skawina for his assistance in developing some
+of the algorithms used by this script.
+
+=head1 COPYRIGHT/LICENSE
+
+License: GPL v2
+Copyright (c) 2010 Seth Robertson
