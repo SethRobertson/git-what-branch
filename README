@@ -37,13 +37,11 @@ DESCRIPTION
     Instead of selecting the merge path which resulted in the earliest
     commit to a named branch, select the merge path which resulted in the
     fewest merges. If multiple merge paths have the same distance, use
-    earliest merge to break ties. Please note that if --all is chosen, no
-    ordering will be applied.
+    earliest merge to break ties.
 
   --date-order
     The default ordering where the merge path which resulted in the earliest
-    commit to a named branch is displayed. Please note that if --all is
-    chosen, no ordering will be applied.
+    commit to a named branch is displayed.
 
   --quiet
     If the commit was not made on a branch, do not print the path from the

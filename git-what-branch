@@ -278,15 +278,10 @@ foreach my $f (@ARGV)
 	  }
 	  else
 	  {
-	    print "* $TARGET first merged onto $br using the following path:\n";
-	    my $last = describep($TARGET);
 	    foreach my $mp (@{$brtree{$br}->{'path'}})
 	    {
-	      my $newm = describep($mp);
-	      print "  $last merged up at $newm (@{[scalar(localtime($commits{$mp}->{'committime'}))]})\n";
-	      $last = $newm;
+	      push(@{$brtree{$br}->{'committimes'}},$commits{$mp}->{'committime'});
 	    }
-	    print "  $last is on $br\n";
 	  }
 	}
 	else
@@ -345,6 +340,41 @@ foreach my $f (@ARGV)
 	print "Could not find $f connected anywhere\n" unless defined($min{'tstamp'});
       }
     }
+    else
+    {
+      if (!$OPTIONS{'quiet'})
+      {
+
+	sub myorder
+	{
+	  if ($OPTIONS{'topo-order'})
+	  {
+	    my $ret = $brtree{$a}->{'cnt'} <=> $brtree{$b}->{'cnt'};
+	    $ret = $brtree{$a}->{'tstamp'} <=> $brtree{$b}->{'tstamp'} if (!$ret);
+	    $ret;
+	  }
+	  else
+	  {
+	    $brtree{$a}->{'tstamp'} <=> $brtree{$b}->{'tstamp'};
+	  }
+	}
+
+
+	foreach my $br (sort myorder (keys %brtree))
+	{
+	  print "* $TARGET first merged onto $br using the following path:\n";
+	  my $last = describep($TARGET);
+	  foreach my $mp (@{$brtree{$br}->{'path'}})
+	  {
+	    my $newm = describep($mp);
+	    my $ctime = shift(@{$brtree{$br}->{'committimes'}});
+	    print "  $last merged up at $newm (@{[scalar(localtime($ctime))]})\n";
+	    $last = $newm;
+	  }
+	  print "  $last is on $br\n";
+	}
+      }
+    }
   }
   print "----------------------------------------\n" if ($MULTI);
 }
@@ -401,14 +431,12 @@ named branches that it was committed onto are printed.
 Instead of selecting the merge path which resulted in the earliest
 commit to a named branch, select the merge path which resulted in the
 fewest merges.  If multiple merge paths have the same distance, use
-earliest merge to break ties.  Please note that if --all is chosen, no
-ordering will be applied.
+earliest merge to break ties.
 
 =head2 --date-order
 
 The default ordering where the merge path which resulted in the
-earliest commit to a named branch is displayed. Please note that if
---all is chosen, no ordering will be applied.
+earliest commit to a named branch is displayed.
 
 =head2 --quiet
 
