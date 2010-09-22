@@ -67,11 +67,14 @@ PERFORMANCE
     faster (if you have hundreds of candidate branches).
 
 EXAMPLES
-     # git-what-branch 1f9c381fa3e0b9b9042e310c69df87eaf9b46ea
-     1f9c381fa3e0b9b9042e310c69df87eaf9b46ea4 first merged onto v2.6.12-n using the following minimal path:
+     # git-what-branch --all 1f9c381fa3e0b9b9042e310c69df87eaf9b46ea4
+     1f9c381fa3e0b9b9042e310c69df87eaf9b46ea4 first merged onto master using the following minimal temporal path:
        v2.6.12-rc3-450-g1f9c381 merged up at v2.6.12-rc3-590-gbfd4bda (Thu May  5 08:59:37 2005)
        v2.6.12-rc3-590-gbfd4bda merged up at v2.6.12-rc3-461-g84e48b6 (Tue May  3 18:27:24 2005)
+       v2.6.12-rc3-461-g84e48b6 is on master
        v2.6.12-rc3-461-g84e48b6 is on v2.6.12-n
+       [...]
+       v2.6.12-rc3-461-g84e48b6 is on v2.6.36-rc5-n
 
 BUGS
     git fast-forward merges make changes to branches without reflecting that
@@ -94,6 +97,9 @@ BUGS
     anonymous branch that was merged, unless you request --all, a
     pseudo-random branch will be chosen as the branch advertised via the
     merge path.
+
+    This program does not take into account the effects of cherry-picking
+    the commit of interest, only merge operations.
 
 ACKNOWLEDGMENTS
     Thanks to Artur Skawina for his assistance in developing some of the
