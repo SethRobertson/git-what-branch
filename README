@@ -60,6 +60,21 @@ DESCRIPTION
     to determine if a particular commit that introduced a bug (or a fix) was
     in a particular release, for example.
 
+PERFORMANCE
+    If many branches (e.g. hundreds) contain the commit, the system may take
+    a long time (for a particular commit in the linux tree, it took 8 second
+    to explore a branch, but there were over 200 candidate branches) to
+    track down the path to each commit. Selection of a particular
+    --reference-branch --reference tag to examine will be hundreds of times
+    faster (if you have hundreds of candidate branches).
+
+EXAMPLES
+     # git-what-branch 1f9c381fa3e0b9b9042e310c69df87eaf9b46ea
+     1f9c381fa3e0b9b9042e310c69df87eaf9b46ea4 first merged onto v2.6.12-n using the following minimal path:
+       v2.6.12-rc3-450-g1f9c381 merged up at v2.6.12-rc3-590-gbfd4bda (Thu May  5 08:59:37 2005)
+       v2.6.12-rc3-590-gbfd4bda merged up at v2.6.12-rc3-461-g84e48b6 (Tue May  3 18:27:24 2005)
+       v2.6.12-rc3-461-g84e48b6 is on v2.6.12-n
+
 BUGS
     git fast-forward merges make changes to branches without reflecting that
     history in a merge commit. This means that when later reviewing that
