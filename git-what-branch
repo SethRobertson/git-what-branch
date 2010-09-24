@@ -240,67 +240,67 @@ foreach my $f (@ARGV)
     # Commit is on an anonymous branch, find out where it merged
 
     my (%brtree);
-      my (%commits,@commits);
+    my (%commits,@commits);
 
-      # Discover all "ancestry-path" commits between target and sources/branches
-      my $cmd = qq%git rev-list --ancestry-path --date-order --format=raw ^"$TARGET" "@{[join('" "',@first)]}"%;
-      my ($commit);
-      foreach my $line (`$cmd`)
+    # Discover all "ancestry-path" commits between target and sources/branches
+    my $cmd = qq%git rev-list --ancestry-path --date-order --format=raw ^"$TARGET" "@{[join('" "',@first)]}"%;
+    my ($commit);
+    foreach my $line (`$cmd`)
+    {
+      my (@f) = split(/\s+/,$line);
+      if ($f[0] eq "commit")
       {
-	my (@f) = split(/\s+/,$line);
-	if ($f[0] eq "commit")
-	{
-	  $commit = $f[1];
-	  $commit =~ s/^-//;	# I have never seen this myself, but Artur Skawina wrote code to defend against it
-	  unshift(@commits,$commit);
-	}
-	if ($f[0] eq "parent")
-	{
-	  push(@{$commits{$commit}->{'parent'}},$f[1]);
-	}
-	if ($f[0] eq "committer")
-	{
-	  $commits{$commit}->{'committime'} = $f[$#f-1];
-	}
+	$commit = $f[1];
+	$commit =~ s/^-//;	# I have never seen this myself, but Artur Skawina wrote code to defend against it
+	unshift(@commits,$commit);
+      }
+      if ($f[0] eq "parent")
+      {
+	push(@{$commits{$commit}->{'parent'}},$f[1]);
+      }
+      if ($f[0] eq "committer")
+      {
+	$commits{$commit}->{'committime'} = $f[$#f-1];
+      }
+    }
+
+    if ($#commits < 0)
+    {
+      warn qq^Cannot get from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^;
+      next;
+    }
+
+    print STDERR qq^Found $#commits+1, going from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^ if ($OPTIONS{'debug'});
+
+    my (@path);
+
+    # Go through commit list (in forward chonological order)
+    my (%mark,$cnt);
+    $mark{$TARGET} = ++$cnt;
+    foreach my $id (@commits)
+    {
+      next unless $commits{$id}->{'parent'};
+
+      print STDERR "Forward $id with ".(join(",",@{$commits{$id}->{'parent'}})) if ($OPTIONS{'debug'});
+
+      # Check to see if this commit is actually a descent of $TARGET
+      if (my @old = grep($mark{$_},@{$commits{$id}->{'parent'}}))
+      {
+	$mark{$id} = $mark{$old[0]};
+	print STDERR " mark $mark{$id}" if ($OPTIONS{'debug'});
       }
 
-      if ($#commits < 0)
+      # Is this a merge commit?
+      if ($#{$commits{$id}->{'parent'}} > 0)
       {
-	warn qq^Cannot get from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^;
-	next;
-      }
-
-      print STDERR qq^Found $#commits+1, going from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^ if ($OPTIONS{'debug'});
-
-      my (@path);
-
-      # Go through commit list (in forward chonological order)
-      my (%mark,$cnt);
-      $mark{$TARGET} = ++$cnt;
-      foreach my $id (@commits)
-      {
-	next unless $commits{$id}->{'parent'};
-
-	print STDERR "Forward $id with ".(join(",",@{$commits{$id}->{'parent'}})) if ($OPTIONS{'debug'});
-
-	# Check to see if this commit is actually a descent of $TARGET
-	if (my @old = grep($mark{$_},@{$commits{$id}->{'parent'}}))
+	# Is the first parent not a descendant? (earliest merge)
+	if (!$mark{$commits{$id}->{'parent'}->[0]})
 	{
-	  $mark{$id} = $mark{$old[0]};
-	  print STDERR " mark $mark{$id}" if ($OPTIONS{'debug'});
+	  $mark{$id} = ++$cnt;
 	}
-
-	# Is this a merge commit?
-	if ($#{$commits{$id}->{'parent'}} > 0)
-	{
-	  # Is the first parent not a descendant? (earliest merge)
-	  if (!$mark{$commits{$id}->{'parent'}->[0]})
-	  {
-	    $mark{$id} = ++$cnt;
-	  }
-	}
-	print STDERR "\n" if ($OPTIONS{'debug'});
       }
+      print STDERR "\n" if ($OPTIONS{'debug'});
+    }
 
     my ($direct);
     foreach my $br (@first)
