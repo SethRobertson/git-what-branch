@@ -83,7 +83,7 @@ sub describep($)
   if ($ref =~ /^[0-9a-f]{40}$/)
   {
     my $newref;
-    chomp($newref = `git describe $ref`);
+    chomp($newref = `git describe --tags $ref`);
     $ref = $newref if ($newref && $? == 0);
   }
   $ref;
