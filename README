@@ -72,13 +72,14 @@ PERFORMANCE
 
 EXAMPLES
      # git-what-branch --all 1f9c381fa3e0b9b9042e310c69df87eaf9b46ea4
-     1f9c381fa3e0b9b9042e310c69df87eaf9b46ea4 first merged onto master using the following minimal temporal path:
-       v2.6.12-rc3-450-g1f9c381 merged up at v2.6.12-rc3-590-gbfd4bda (Thu May  5 08:59:37 2005)
-       v2.6.12-rc3-590-gbfd4bda merged up at v2.6.12-rc3-461-g84e48b6 (Tue May  3 18:27:24 2005)
-       v2.6.12-rc3-461-g84e48b6 is on master
-       v2.6.12-rc3-461-g84e48b6 is on v2.6.12-n
+     v2.6.12-rc3-450-g1f9c381 used the following minimal temporal path:
+       merged to v2.6.12-rc3-461-g84e48b6 @Tue May  3 18:27:24 2005
+       merged to v2.6.12-rc3-590-gbfd4bda @Thu May  5 08:59:37 2005
+       v2.6.12-rc3-590-gbfd4bda is on v2.6.12-n
+       v2.6.12-rc3-590-gbfd4bda is on v2.6.12-rc4-n
        [...]
-       v2.6.12-rc3-461-g84e48b6 is on v2.6.36-rc5-n
+       v2.6.12-rc3-590-gbfd4bda is on v2.6.36-rc4-n
+       v2.6.12-rc3-590-gbfd4bda is on v2.6.36-rc5-n(aka master)
 
 BUGS
     git fast-forward merges make changes to branches without reflecting that
