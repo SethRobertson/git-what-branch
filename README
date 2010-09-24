@@ -3,9 +3,9 @@ NAME
     or near
 
 SYNOPSIS
-    git-what-branch [--allref] [--all] [--topo-order | --date-order ]
-    [--quiet] [--reference-branch=branchname] [--reference=reference]
-    <commit-hash/tag>...
+    git-what-branch [[--branches] | [--allbranches] | [--tags] | [--allref]]
+    [--all] [--topo-order | --date-order ] [--quiet]
+    [--reference=reference,reference,reference] <commit-hash/tag>...
 
 OVERVIEW
     Tell us (by default) the earliest causal path of commits and merges to
@@ -22,9 +22,17 @@ OVERVIEW
     reference branch or commit, it should normally take seconds.
 
 DESCRIPTION
+  --branches
+    The default mode of check the path to any local branch.
+
+  --allbranches
+    Check the path to any local or remote branch.
+
+  --tags
+    Check the path to any known tags
+
   --allref
-    Allow even remote branches to be candidates to see what named branch a
-    particular commit was make on or merged to.
+    Check the path to any local or remote branch and to any tag.
 
   --all
     If the commit in question was not made directly on a named branch (in
@@ -47,16 +55,12 @@ DESCRIPTION
     If the commit was not made on a branch, do not print the path from the
     commit to the named branch, just print the branch name.
 
-  --reference-branch <branchname>
-    Instead of looking at all branches which contain a specific commit, look
-    only at the named branch. This will save a great deal of time if many
-    branches contain the commits in question.
-
-  --reference <tagname/commithash>
-    Instead of looking to see what branch the commit was in, look to see how
-    the commit got to a specific tag or other commit. This would be useful
-    to determine if a particular commit that introduced a bug (or a fix) was
-    in a particular release, for example.
+  --reference <tagname/commithash/branchname>
+    Instead of auto-generating the list of branches/tags to check to see how
+    the commit in question got there, specify the (comma seperated) list of
+    tags, branch names, commits, or other references that this program
+    should use to try and find minimal and early paths to from the command
+    line references.
 
 PERFORMANCE
     If many branches (e.g. hundreds) contain the commit, the system may take
