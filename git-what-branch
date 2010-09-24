@@ -255,7 +255,7 @@ foreach my $f (@ARGV)
 	next;
       }
 
-      print STDERR "Found $#commits+1, going from $TARGET to $br\n" if ($OPTIONS{'debug'});
+      print STDERR "Found $#commits+1, going from @{[describep($TARGET)]} to @{[describep($br)]}\n" if ($OPTIONS{'debug'});
 
       my (@path);
 
@@ -292,7 +292,7 @@ foreach my $f (@ARGV)
       # Check to make sure we have gone from TARGET or SOURCE via parents
       if (!$mark{$br})
       {
-	print STDERR "Did not reach $br from $TARGET\n" if ($OPTIONS{'debug'});
+	print STDERR "Did not reach @{[describep($br)]} from @{[describep($TARGET)]}\n" if ($OPTIONS{'debug'});
 	# Not connected
 	next;
       }
@@ -332,17 +332,18 @@ sub myorder
   my $ret;
   if ($OPTIONS{'topo-order'})
   {
-    $ret = $brtree{$a}->{'cnt'} <=> $brtree{$b}->{'cnt'};
+    $ret = $::brt{$a}->{'cnt'} <=> $::brt{$b}->{'cnt'};
     return($ret) if ($ret);
   }
-  $ret = $brtree{$a}->{'tstamp'} <=> $brtree{$b}->{'tstamp'};
-  $ret = $a cmp $b if (!$ret);
+  $ret = $::brt{$a}->{'tstamp'} <=> $::brt{$b}->{'tstamp'};
+  $ret = (describep($a) cmp describep($b)) if (!$ret);
   $ret;
 };
 
     if (!$direct || $OPTIONS{'all'})
     {
 
+      local %::brt = %brtree;
       my (@brlist) = sort myorder (keys %brtree);
 
       my ($lastts,$last);
@@ -360,7 +361,7 @@ sub myorder
 
 	  if (!$OPTIONS{'quiet'})
 	  {
-	    print "$f first merged with @{[describep($br)]} using the following minimal".($OPTIONS{'topo-order'}?"":" temporal")." path:\n";
+	    print "@{[describep($f)]} first merged with @{[describep($br)]} using the following minimal".($OPTIONS{'topo-order'}?"":" temporal")." path:\n";
 	    $last = describep($TARGET);
 	    foreach my $mp (@{$brtree{$br}->{'path'}})
 	    {
