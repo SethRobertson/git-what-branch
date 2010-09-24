@@ -52,21 +52,27 @@ my %translation;
 sub describep($)
 {
   my ($ref) = @_;
+  my ($ret) = $ref;
 
   if ($ref =~ /^[0-9a-f]{40}$/)
   {
     if ($translation{$ref})
     {
-      $ref = $translation{$ref};
+      my @tmp = @{ $translation{$ref} };
+      $ret = pop(@tmp);
+      if ($#tmp >= 0)
+      {
+	$ret .= "(aka ".join(", ",@tmp).")";
+      }
     }
     else
     {
       my $newref;
       chomp($newref = `git describe --tags $ref`);
-      $ref = $newref if ($newref && $? == 0);
+      $ret = $newref if ($newref && $? == 0);
     }
   }
-  $ref;
+  $ret;
 }
 
 
@@ -118,6 +124,20 @@ sub find_shortest($$$$)
 }
 
 
+# topo/date sort order
+sub myorder
+{
+  my $ret;
+  if ($OPTIONS{'topo-order'})
+  {
+    $ret = $::brt{$a}->{'cnt'} <=> $::brt{$b}->{'cnt'};
+    return($ret) if ($ret);
+  }
+  $ret = $::brt{$a}->{'tstamp'} <=> $::brt{$b}->{'tstamp'};
+  $ret = (describep($a) cmp describep($b)) if (!$ret);
+  $ret;
+};
+
 
 my @references;
 if ($OPTIONS{'reference'})
@@ -156,7 +176,7 @@ foreach my $f (@ARGV)
 
     if ($OPTIONS{'allref'})
     {
-      $cmd = "git branch -a --contains $f; git tag --contains $f";
+      $cmd = "git tag --contains $f; git branch -a --contains $f";
       $error = "named ref";
     }
     elsif ($OPTIONS{'tags'})
@@ -182,7 +202,7 @@ foreach my $f (@ARGV)
       my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
       die "Unknown --reference $ref\n" if ($?);
       chomp($tmp);
-      $translation{$tmp} = $ref;
+      push(@{$translation{$tmp}}, $ref);
       push(@first,$tmp);
     }
 
@@ -193,7 +213,7 @@ foreach my $f (@ARGV)
     }
   }
 
-  print STDERR "Considering @{[join(',',@first)]}\n" if ($OPTIONS{'debug'} > 1);
+  print STDERR "Considering @{[join(',',map(describep($_),@first))]}\n" if ($OPTIONS{'debug'} > 1);
 
   # Shortcut if we might only need direct commit branches
   if (!$OPTIONS{'all'})
@@ -219,16 +239,11 @@ foreach my $f (@ARGV)
   {
     # Commit is on an anonymous branch, find out where it merged
 
-    my (%brtree,$direct);
-    foreach my $br (@first)
-    {
+    my (%brtree);
       my (%commits,@commits);
-      print STDERR "Checking branch @{[describep($br)]}\n" if ($OPTIONS{'debug'});
 
-      next if ($TARGET eq $br);
-
-      # Discover all "ancestry-path" commits between target and branch
-      my $cmd = qq^git rev-list --ancestry-path --date-order --format=raw "$TARGET".."$br"^;
+      # Discover all "ancestry-path" commits between target and sources/branches
+      my $cmd = qq%git rev-list --ancestry-path --date-order --format=raw ^"$TARGET" "@{[join('" "',@first)]}"%;
       my ($commit);
       foreach my $line (`$cmd`)
       {
@@ -251,11 +266,11 @@ foreach my $f (@ARGV)
 
       if ($#commits < 0)
       {
-	warn "Cannot get from @{[describep($TARGET)]} to @{[describep($br)]}\n";
+	warn qq^Cannot get from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^;
 	next;
       }
 
-      print STDERR "Found $#commits+1, going from @{[describep($TARGET)]} to @{[describep($br)]}\n" if ($OPTIONS{'debug'});
+      print STDERR qq^Found $#commits+1, going from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^ if ($OPTIONS{'debug'});
 
       my (@path);
 
@@ -282,13 +297,14 @@ foreach my $f (@ARGV)
 	  if (!$mark{$commits{$id}->{'parent'}->[0]})
 	  {
 	    $mark{$id} = ++$cnt;
-	    push(@path,$id);
-	    print STDERR " push $cnt" if ($OPTIONS{'debug'});
 	  }
 	}
 	print STDERR "\n" if ($OPTIONS{'debug'});
       }
 
+    my ($direct);
+    foreach my $br (@first)
+    {
       # Check to make sure we have gone from TARGET or SOURCE via parents
       if (!$mark{$br})
       {
@@ -297,9 +313,8 @@ foreach my $f (@ARGV)
 	next;
       }
 
-      print STDERR "Found $#path+1 initial path entries\n" if ($OPTIONS{'debug'});
 
-      if ($#path >= 0)
+      if ($mark{$br} > 1)
       {
 	@path = find_shortest($br,$TARGET,\%commits,\%mark);
 	$brtree{$br}->{'path'} = \@path;
@@ -324,21 +339,6 @@ foreach my $f (@ARGV)
 	$direct = 1;
       }
     }
-
-
-# topo/date sort order
-sub myorder
-{
-  my $ret;
-  if ($OPTIONS{'topo-order'})
-  {
-    $ret = $::brt{$a}->{'cnt'} <=> $::brt{$b}->{'cnt'};
-    return($ret) if ($ret);
-  }
-  $ret = $::brt{$a}->{'tstamp'} <=> $::brt{$b}->{'tstamp'};
-  $ret = (describep($a) cmp describep($b)) if (!$ret);
-  $ret;
-};
 
     if (!$direct || $OPTIONS{'all'})
     {
