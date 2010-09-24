@@ -17,39 +17,14 @@ no warnings "uninitialized";
 use Getopt::Long;
 use strict;
 
-my $USAGE="$0: [--allref] [--all] [--quiet] [--reference-branch=branchname] [--reference=reference] [--version] <commit-hash/tag>...
-
---allref
-	Consider even remote branches as candidates for the branch a
-	reference is on
-
---all
-	Print all reachable branch names (and merge paths)
-
---quiet
-	Print only the branch names, not the merge paths
-
---reference-branch <branchname>
-	The command line arguments/reference are searched to see if
-	they can reach this branch.
-
---reference <hash|tag>
-	Specify a particular commit you which you want to
-	know how the commit in question was reached
-
---topo-order
---date-order
-	By default we select the merge path which merged earliest into
-	a specific named commit (--date-order).  Instead we can select
-	--topo-order which will select the minimum number of merges.
-
---version
-	Determine the version of the installed program.
+my $USAGE="$0: [[--branches] | [--allbranches] | [--tags] | [--allref]]
+  [--all] [--quiet] [--reference=reference[,reference]...] [--version]
+  <commit-SHA/tag>...
 ";
 
 my(%OPTIONS);
 Getopt::Long::Configure("bundling", "no_ignore_case", "no_auto_abbrev", "no_getopt_compat", "require_order");
-GetOptions(\%OPTIONS, 'a|allref', 'all', 'quiet', 'debug', 'reference-branch=s', 'reference=s', 'verbose|v+', 'version', 'topo-order', 'date-order') || die $USAGE;
+GetOptions(\%OPTIONS, 'branches|b', 'allbranches', 'tags|t', 'allref|a', 'all', 'quiet', 'debug+', 'reference|references=s', 'verbose|v+', 'version', 'topo-order', 'date-order') || die $USAGE;
 
 if ($OPTIONS{'version'})
 {
@@ -57,9 +32,6 @@ if ($OPTIONS{'version'})
   exit(0);
 }
 
-
-my ($OPT_A);
-$OPT_A="-a" if ($OPTIONS{'a'});
 
 if ( $#ARGV < 0 )
 {
@@ -69,6 +41,7 @@ if ( $#ARGV < 0 )
 
 my ($MULTI);
 $MULTI=1 if ( $#ARGV > 0 );
+my %translation;
 
 
 
@@ -82,9 +55,16 @@ sub describep($)
 
   if ($ref =~ /^[0-9a-f]{40}$/)
   {
-    my $newref;
-    chomp($newref = `git describe --tags $ref`);
-    $ref = $newref if ($newref && $? == 0);
+    if ($translation{$ref})
+    {
+      $ref = $translation{$ref};
+    }
+    else
+    {
+      my $newref;
+      chomp($newref = `git describe --tags $ref`);
+      $ref = $newref if ($newref && $? == 0);
+    }
   }
   $ref;
 }
@@ -139,6 +119,18 @@ sub find_shortest($$$$)
 
 
 
+my @references;
+if ($OPTIONS{'reference'})
+{
+  foreach my $ref (split(',',$OPTIONS{'reference'}))
+  {
+    my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
+    die "Unknown --reference $ref\n" if ($?);
+    chomp($tmp);
+    $translation{$tmp} = $ref;
+    push(@references,$tmp);
+  }
+}
 
 
 foreach my $f (@ARGV)
@@ -154,24 +146,54 @@ foreach my $f (@ARGV)
 
   if ($OPTIONS{'reference'})
   {
-    my $tmp = `git rev-list -n 1 $OPTIONS{'reference'} 2>/dev/null`;
-    die "Unknown --reference $OPTIONS{'reference'}\n" if ($?);
-    chomp($tmp);
-    @first = ($tmp);
+    @first = @references;
   }
   else
   {
     # Generate first pass list of candidate branches
-    @first = grep(s/^\*?\s+// && s/\n// && !/ -\> / && (!$OPTIONS{'reference-branch'} || $OPTIONS{'reference-branch'} eq $_),`git branch $OPT_A --contains $f`);
+    my $cmd;
+    my $error;
+
+    if ($OPTIONS{'allref'})
+    {
+      $cmd = "git branch -a --contains $f; git tag --contains $f";
+      $error = "named ref";
+    }
+    elsif ($OPTIONS{'tags'})
+    {
+      $cmd = "git tag --contains $f";
+      $error = "tag";
+    }
+    elsif ($OPTIONS{'allbranches'})
+    {
+      $cmd = "git branch -a --contains $f";
+      $error = "branch";
+    }
+    else
+    {
+      $cmd = "git branch --contains $f";
+      $error = "local branch";
+    }
+
+    print STDERR "Running $cmd\n" if ($OPTIONS{'debug'} > 1);
+
+    foreach my $ref (grep(s/^\*?\s*// && s/\n// && !/ -\> /,`$cmd`))
+    {
+      my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
+      die "Unknown --reference $ref\n" if ($?);
+      chomp($tmp);
+      $translation{$tmp} = $ref;
+      push(@first,$tmp);
+    }
 
     if ($#first < 0)
     {
-      my $msg = "any named branch";
-      $msg = "any local named branch" unless ($OPTIONS{'a'});
-      $msg = "branch $OPTIONS{'reference-branch'}" if ($OPTIONS{'reference-branch'});
-      die "Commit $f has not merged onto $msg yet\n";
+      warn "Commit $f has not merged with any $error yet\n";
+      next;
     }
   }
+
+  print STDERR "Considering @{[join(',',@first)]}\n" if ($OPTIONS{'debug'} > 1);
 
   # Shortcut if we might only need direct commit branches
   if (!$OPTIONS{'all'})
@@ -201,10 +223,9 @@ foreach my $f (@ARGV)
     foreach my $br (@first)
     {
       my (%commits,@commits);
-      my $SOURCE = `git rev-list -n 1 $br 2>/dev/null`;
-      die "Cannot find branch reference.  Huh?\n" if ($?);
-      chomp($SOURCE);
-      print STDERR "Checking branch $br\n" if ($OPTIONS{'debug'});
+      print STDERR "Checking branch @{[describep($br)]}\n" if ($OPTIONS{'debug'});
+
+      next if ($TARGET eq $br);
 
       # Discover all "ancestry-path" commits between target and branch
       my $cmd = qq^git rev-list --ancestry-path --date-order --format=raw "$TARGET".."$br"^;
@@ -228,7 +249,13 @@ foreach my $f (@ARGV)
 	}
       }
 
-      print STDERR "Found $#commits+1, going from $TARGET to $SOURCE\n" if ($OPTIONS{'debug'});
+      if ($#commits < 0)
+      {
+	warn "Cannot get from @{[describep($TARGET)]} to @{[describep($br)]}\n";
+	next;
+      }
+
+      print STDERR "Found $#commits+1, going from $TARGET to $br\n" if ($OPTIONS{'debug'});
 
       my (@path);
 
@@ -263,8 +290,9 @@ foreach my $f (@ARGV)
       }
 
       # Check to make sure we have gone from TARGET or SOURCE via parents
-      if (!$mark{$SOURCE})
+      if (!$mark{$br})
       {
+	print STDERR "Did not reach $br from $TARGET\n" if ($OPTIONS{'debug'});
 	# Not connected
 	next;
       }
@@ -273,7 +301,7 @@ foreach my $f (@ARGV)
 
       if ($#path >= 0)
       {
-	@path = find_shortest($SOURCE,$TARGET,\%commits,\%mark);
+	@path = find_shortest($br,$TARGET,\%commits,\%mark);
 	$brtree{$br}->{'path'} = \@path;
 	$brtree{$br}->{'cnt'} = $#path;
 	$brtree{$br}->{'tstamp'} = $commits{$path[$#path]}->{'committime'};
@@ -287,11 +315,11 @@ foreach my $f (@ARGV)
       {
 	if ($OPTIONS{'all'})
 	{
-	  print "$f is on $br\n";
+	  print "$f is on @{[describep($br)]}\n";
 	}
 	else
 	{
-	  print "$br\n";
+	  print describep($br)."\n";
 	}
 	$direct = 1;
       }
@@ -332,7 +360,7 @@ sub myorder
 
 	  if (!$OPTIONS{'quiet'})
 	  {
-	    print "$f first merged onto $br using the following minimal".($OPTIONS{'topo-order'}?"":" temporal")." path:\n";
+	    print "$f first merged with @{[describep($br)]} using the following minimal".($OPTIONS{'topo-order'}?"":" temporal")." path:\n";
 	    $last = describep($TARGET);
 	    foreach my $mp (@{$brtree{$br}->{'path'}})
 	    {
@@ -341,18 +369,18 @@ sub myorder
 	      print "  $last merged up at $newm (@{[scalar(localtime($ctime))]})\n";
 	      $last = $newm;
 	    }
-	    print "  $last is on $br\n";
+	    print "  $last is on @{[describep($br)]}\n";
 	    next;
 	  }
 	}
 
 	if ($OPTIONS{'quiet'})
 	{
-	  print "$br\n";
+	  print describep($br)."\n";
 	}
 	else
 	{
-	  print "  $last is on $br\n";
+	  print "  $last is on @{[describep($br)]}\n";
 	}
       }
     }
@@ -371,7 +399,7 @@ git-what-branch - Discover what branch a particular commit was made on or near
 
 =head1 SYNOPSIS
 
-git-what-branch [--allref] [--all] [--topo-order | --date-order ] [--quiet] [--reference-branch=branchname] [--reference=reference] <commit-hash/tag>...
+git-what-branch [[--branches] | [--allbranches] | [--tags] | [--allref]] [--all] [--topo-order | --date-order ] [--quiet] [--reference=reference,reference,reference] <commit-hash/tag>...
 
 
 =head1 OVERVIEW
@@ -394,10 +422,21 @@ take seconds.
 
 =head1 DESCRIPTION
 
+=head2 --branches
+
+The default mode of check the path to any local branch.
+
+=head2 --allbranches
+
+Check the path to any local or remote branch.
+
+=head2 --tags
+
+Check the path to any known tags
+
 =head2 --allref
 
-Allow even remote branches to be candidates to see what named branch a
-particular commit was make on or merged to.
+Check the path to any local or remote branch and to any tag.
 
 =head2 --all
 
@@ -424,18 +463,13 @@ earliest commit to a named branch is displayed.
 If the commit was not made on a branch, do not print the path from the
 commit to the named branch, just print the branch name.
 
-=head2 --reference-branch <branchname>
+=head2 --reference <tagname/commithash/branchname>
 
-Instead of looking at all branches which contain a specific commit,
-look only at the named branch.  This will save a great deal of time if
-many branches contain the commits in question.
-
-=head2 --reference <tagname/commithash>
-
-Instead of looking to see what branch the commit was in, look to see
-how the commit got to a specific tag or other commit.  This would be
-useful to determine if a particular commit that introduced a bug (or a
-fix) was in a particular release, for example.
+Instead of auto-generating the list of branches/tags to check to see
+how the commit in question got there, specify the (comma seperated)
+list of tags, branch names, commits, or other references that this
+program should use to try and find minimal and early paths to from the
+command line references.
 
 
 =head1 PERFORMANCE
