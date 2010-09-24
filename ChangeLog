@@ -1,0 +1,11 @@
+2010-09-23  Seth Robertson  <seth@startide.baka.org>
+
+	* v0.2.0 release
+	* Massive speedup when many targets need to be searched (Thanks Artur Skawina)
+	* Allow auto-target specification --branches, --allbranches, --tags, --allref
+	* Allow --reference to be comma separated list of target references
+	* Delete outdated --reference-branch documentation
+	* Delete extended help (RTFM)
+	* Use better(?) ref->name conversion
+	* Correct sorting if multiple commits of interest are specified for searching
+
