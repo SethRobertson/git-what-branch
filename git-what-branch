@@ -197,7 +197,7 @@ foreach my $f (@ARGV)
 
     print STDERR "Running $cmd\n" if ($OPTIONS{'debug'} > 1);
 
-    foreach my $ref (grep(s/^\*?\s*// && s/\n// && !/ -\> /,`$cmd`))
+    foreach my $ref (grep(s/^\*?\s*// && s/\n// && !/\(no branch\)/ && !/ -\> /,`$cmd`))
     {
       my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
       die "Unknown --reference $ref\n" if ($?);

@@ -1,3 +1,8 @@
+2010-10-12  Seth Robertson  <seth@startide.baka.org>
+
+	* git-what-branch: Handle case when you run git-what-branch when
+	you are not on a branch (no branch).
+
 2010-09-23  Seth Robertson  <seth@startide.baka.org>
 
 	* v0.2.1 release
@@ -9,4 +14,3 @@
 	* Delete extended help (RTFM)
 	* Use better(?) ref->name conversion
 	* Correct sorting if multiple commits of interest are specified for searching
-
