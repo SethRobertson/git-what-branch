@@ -233,7 +233,7 @@ foreach my $f (@ARGV)
     # cannot figure out which is the privledged branch because the
     # branch creation information is not preserved.
 
-    print join("\n",@second)."\n";
+    print join("\n",map(describep($_),@second))."\n";
   }
   else
   {
