@@ -162,11 +162,11 @@ foreach my $f (@ARGV)
   die "Unknown reference $f\n" if ($?);
   chomp($TARGET);
 
-  my (@first,@second);
+  my (%first,@second);
 
   if ($OPTIONS{'reference'})
   {
-    @first = @references;
+    map($first{$_}=1,@references);
   }
   else
   {
@@ -203,23 +203,23 @@ foreach my $f (@ARGV)
       die "Unknown --reference $ref\n" if ($?);
       chomp($tmp);
       push(@{$translation{$tmp}}, $ref);
-      push(@first,$tmp);
+      $first{$tmp} = 1;
     }
 
-    if ($#first < 0)
+    if (!%first)
     {
       warn "Commit $f has not merged with any $error yet\n";
       next;
     }
   }
 
-  print STDERR "Considering @{[join(',',map(describep($_),@first))]}\n" if ($OPTIONS{'debug'} > 1);
+  print STDERR "Considering @{[join(',',map(describep($_),keys %first))]}\n" if ($OPTIONS{'debug'} > 1);
 
   # Shortcut if we might only need direct commit branches
   if (!$OPTIONS{'all'})
   {
     # Look for merge intos to exclude
-    foreach my $br (@first)
+    foreach my $br (keys %first)
     {
       # Exclude branches that this commit was merged into
       push(@second,$br) if (grep(/$TARGET/,`git rev-list --first-parent $br`));
@@ -243,7 +243,7 @@ foreach my $f (@ARGV)
     my (%commits,@commits);
 
     # Discover all "ancestry-path" commits between target and sources/branches
-    my $cmd = qq%git rev-list --ancestry-path --date-order --format=raw ^"$TARGET" "@{[join('" "',@first)]}"%;
+    my $cmd = qq(git rev-list --ancestry-path --date-order --format=raw ^"$TARGET" "@{[join('" "',keys %first)]}");
     my ($commit);
     foreach my $line (`$cmd`)
     {
@@ -266,11 +266,11 @@ foreach my $f (@ARGV)
 
     if ($#commits < 0)
     {
-      warn qq^Cannot get from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^;
+      warn qq^Cannot get from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),keys %first))]}\n^;
       next;
     }
 
-    print STDERR qq^Found $#commits+1, going from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),@first))]}\n^ if ($OPTIONS{'debug'});
+    print STDERR qq^Found $#commits+1, going from @{[describep($TARGET)]} to @{[join(", ",map(describep($_),keys %first))]}\n^ if ($OPTIONS{'debug'});
 
     my (@path);
 
@@ -303,7 +303,7 @@ foreach my $f (@ARGV)
     }
 
     my ($direct);
-    foreach my $br (@first)
+    foreach my $br (keys %first)
     {
       # Check to make sure we have gone from TARGET or SOURCE via parents
       if (!$mark{$br})
