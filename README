@@ -4,8 +4,9 @@ NAME
 
 SYNOPSIS
     git-what-branch [[--branches] | [--allbranches] | [--tags] | [--allref]]
-    [--all] [--topo-order | --date-order ] [--quiet]
-    [--reference=reference,reference,reference] <commit-hash/tag>...
+    [--first-parent] [--first-parent-simple] [--all] [--topo-order |
+    --date-order ] [--quiet] [--reference=reference,reference,reference]
+    <commit-hash/tag>...
 
 OVERVIEW
     Tell us (by default) the earliest causal path of commits and merges to
@@ -40,6 +41,17 @@ DESCRIPTION
     named branch which the commit was merged to first and prints only that
     path. With this argument all paths from the commit in question to all
     named branches that it was committed onto are printed.
+
+  --first-parent
+    If the commit in question was not made directly on a named branch, fail.
+    If the commit was made directly on a named branch, print the branch name
+    or names.
+
+  --first-parent-simple
+    Same as --first-parent except instead of outputting in the "(aka)"
+    format if there are multiple differently spelled but otherwise identical
+    branches, print all directly reachable branches/references out with one
+    line per branch/reference.
 
   --topo-order
     Instead of selecting the merge path which resulted in the earliest

@@ -18,13 +18,14 @@ use Getopt::Long;
 use strict;
 
 my $USAGE="$0: [[--branches] | [--allbranches] | [--tags] | [--allref]]
+  [--first-parent] [--first-parent-simple]
   [--all] [--quiet] [--reference=reference[,reference]...] [--version]
   <commit-SHA/tag>...
 ";
 
 my(%OPTIONS);
 Getopt::Long::Configure("bundling", "no_ignore_case", "no_auto_abbrev", "no_getopt_compat", "require_order");
-GetOptions(\%OPTIONS, 'branches|b', 'allbranches', 'tags|t', 'allref|a', 'all', 'quiet', 'debug+', 'reference|references=s', 'verbose|v+', 'version', 'topo-order', 'date-order') || die $USAGE;
+GetOptions(\%OPTIONS, 'first-parent', 'first-parent-simple', 'branches|b', 'allbranches', 'tags|t', 'allref|a', 'all', 'quiet', 'debug+', 'reference|references=s', 'verbose|v+', 'version', 'topo-order', 'date-order') || die $USAGE;
 
 if ($OPTIONS{'version'})
 {
@@ -41,7 +42,9 @@ if ( $#ARGV < 0 )
 
 my ($MULTI);
 $MULTI=1 if ( $#ARGV > 0 );
-my %translation;
+my(%translation,%TRANSLATION);
+our($exitcode) = 0;
+$OPTIONS{'first-parent'} = 1 if ($OPTIONS{'first-parent-simple'});
 
 
 
@@ -59,10 +62,17 @@ sub describep($)
     if ($translation{$ref})
     {
       my @tmp = @{ $translation{$ref} };
-      $ret = pop(@tmp);
-      if ($#tmp >= 0)
+      if ($OPTIONS{'first-parent-simple'})
       {
-	$ret .= "(aka ".join(", ",@tmp).")";
+	$ret = join("\n",@tmp);
+      }
+      else
+      {
+	$ret = pop(@tmp);
+	if ($#tmp >= 0)
+	{
+	  $ret .= "(aka ".join(", ",@tmp).")";
+	}
       }
     }
     else
@@ -139,7 +149,7 @@ sub myorder
 };
 
 
-my @references;
+my(@references,@REFERENCES);
 if ($OPTIONS{'reference'})
 {
   foreach my $ref (split(',',$OPTIONS{'reference'}))
@@ -147,8 +157,8 @@ if ($OPTIONS{'reference'})
     my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
     die "Unknown --reference $ref\n" if ($?);
     chomp($tmp);
-    push(@{$translation{$tmp}}, $ref);
-    push(@references,$tmp);
+    push(@{$TRANSLATION{$tmp}}, $ref);
+    push(@REFERENCES,$tmp);
   }
 }
 
@@ -156,6 +166,9 @@ if ($OPTIONS{'reference'})
 foreach my $f (@ARGV)
 {
   print "Looking for $f\n++++++++++++++++++++++++++++++++++++++++\n" if ($MULTI);
+
+  %translation = %TRANSLATION;
+  @references = @REFERENCES;
 
   # Translate into a commit hash
   my ($TARGET)=`git rev-list -n 1 $f 2>/dev/null`;
@@ -209,20 +222,21 @@ foreach my $f (@ARGV)
     if (!%first)
     {
       warn "Commit $f has not merged with any $error yet\n";
+      $exitcode = 2;
       next;
     }
   }
 
   print STDERR "Considering @{[join(',',map(describep($_),keys %first))]}\n" if ($OPTIONS{'debug'} > 1);
 
-  # Shortcut if we might only need direct commit branches
-  if (!$OPTIONS{'all'})
+  # Look for merge intos to exclude
+  foreach my $br (keys %first)
   {
-    # Look for merge intos to exclude
-    foreach my $br (keys %first)
+    # Exclude branches that this commit was merged into
+    if (grep(/$TARGET/,`git rev-list --first-parent $br`))
     {
-      # Exclude branches that this commit was merged into
-      push(@second,$br) if (grep(/$TARGET/,`git rev-list --first-parent $br`));
+      delete($first{$br});
+      push(@second,$br);
     }
   }
 
@@ -235,9 +249,16 @@ foreach my $f (@ARGV)
 
     print join("\n",map(describep($_),@second))."\n";
   }
-  else
+
+  if (($#second < 0 || $OPTIONS{'all'}) && %first)
   {
     # Commit is on an anonymous branch, find out where it merged
+    if ($OPTIONS{'first-parent'})
+    {
+      warn "Commit $f was not directly on any candidates\n";
+      $exitcode = 1;
+      next;
+    }
 
     my (%brtree);
     my (%commits,@commits);
@@ -394,7 +415,7 @@ foreach my $f (@ARGV)
   }
   print "----------------------------------------\n" if ($MULTI);
 }
-
+exit($exitcode);
 
 =pod
 
@@ -406,7 +427,7 @@ git-what-branch - Discover what branch a particular commit was made on or near
 
 =head1 SYNOPSIS
 
-git-what-branch [[--branches] | [--allbranches] | [--tags] | [--allref]] [--all] [--topo-order | --date-order ] [--quiet] [--reference=reference,reference,reference] <commit-hash/tag>...
+git-what-branch [[--branches] | [--allbranches] | [--tags] | [--allref]] [--first-parent] [--first-parent-simple] [--all] [--topo-order | --date-order ] [--quiet] [--reference=reference,reference,reference] <commit-hash/tag>...
 
 
 =head1 OVERVIEW
@@ -452,6 +473,18 @@ which case all branch names would be printed), the system picks the
 named branch which the commit was merged to first and prints only that
 path.  With this argument all paths from the commit in question to all
 named branches that it was committed onto are printed.
+
+=head2 --first-parent
+
+If the commit in question was not made directly on a named branch, fail.
+If the commit was made directly on a named branch, print the branch name or names.
+
+=head2 --first-parent-simple
+
+Same as --first-parent except instead of outputting in the "(aka)"
+format if there are multiple differently spelled but otherwise
+identical branches, print all directly reachable branches/references
+out with one line per branch/reference.
 
 =head2 --topo-order
 
