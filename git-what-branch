@@ -189,7 +189,7 @@ foreach my $f (@ARGV)
 
     if ($OPTIONS{'allref'})
     {
-      $cmd = "git tag --contains $f; git branch -a --contains $f";
+      $cmd = "git tag --contains $f; git branch --no-color -a --contains $f";
       $error = "named ref";
     }
     elsif ($OPTIONS{'tags'})
@@ -199,12 +199,12 @@ foreach my $f (@ARGV)
     }
     elsif ($OPTIONS{'allbranches'})
     {
-      $cmd = "git branch -a --contains $f";
+      $cmd = "git branch --no-color -a --contains $f";
       $error = "branch";
     }
     else
     {
-      $cmd = "git branch --contains $f";
+      $cmd = "git branch --no-color --contains $f";
       $error = "local branch";
     }
 
