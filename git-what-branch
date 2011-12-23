@@ -78,7 +78,7 @@ sub describep($)
     else
     {
       my $newref;
-      chomp($newref = `git describe --tags $ref`);
+      chomp($newref = `git describe --tags --always $ref`);
       $ret = $newref if ($newref && $? == 0);
     }
   }
