@@ -154,7 +154,7 @@ if ($OPTIONS{'reference'})
 {
   foreach my $ref (split(',',$OPTIONS{'reference'}))
   {
-    my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
+    my $tmp = `git rev-list -n 1 $ref -- 2>/dev/null`;
     die "Unknown --reference $ref\n" if ($?);
     chomp($tmp);
     push(@{$TRANSLATION{$tmp}}, $ref);
@@ -171,7 +171,7 @@ foreach my $f (@ARGV)
   @references = @REFERENCES;
 
   # Translate into a commit hash
-  my ($TARGET)=`git rev-list -n 1 $f 2>/dev/null`;
+  my ($TARGET)=`git rev-list -n 1 $f -- 2>/dev/null`;
   die "Unknown reference $f\n" if ($?);
   chomp($TARGET);
 
@@ -212,7 +212,7 @@ foreach my $f (@ARGV)
 
     foreach my $ref (grep(s/^\*?\s*// && s/\n// && !/\(no branch\)/ && !/ -\> /,`$cmd`))
     {
-      my $tmp = `git rev-list -n 1 $ref 2>/dev/null`;
+      my $tmp = `git rev-list -n 1 $ref -- 2>/dev/null`;
       die "Unknown --reference $ref\n" if ($?);
       chomp($tmp);
       push(@{$translation{$tmp}}, $ref);
